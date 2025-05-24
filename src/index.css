@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(120deg, #e0eafc 0%, #cfdef3 100%);
+  background-attachment: fixed;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  border-radius: 2rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(2px);
+}
