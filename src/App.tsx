@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-
+import TaskList from "./TaskList";
+import TaskForm from "./TaskForm";
 interface Task {
   id: string;
   text: string;
@@ -122,12 +123,42 @@ function App() {
           </button>
         </div>
         <button
-          onClick={handleClearCompleted}
           className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow font-semibold transition-colors duration-150 border-2 border-red-500 hover:border-red-600"
         >
           🧹 Limpiar Completadas
         </button>
       </div>
+      {showForm ? (
+        <TaskForm
+          onSave={handleAddOrEditTask}
+          onCancel={handleCancel}
+          editingTask={
+            editingTask
+              ? {
+                  id: editingTask.id,
+                  text: editingTask.text,
+                  priority: editingTask.priority,
+                }
+              : undefined
+          }
+        />
+      ) : (<button
+          onClick={() => {
+            setEditingTask(null);
+            setShowForm(true);
+          }}
+          className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-full shadow font-bold text-lg mb-6 transition-colors duration-150 border-2 border-green-500 hover:border-green-600"
+        >
+          <span>➕</span> Agregar Tarea
+        </button>
+      )}
+      <TaskList
+        tasks={tasks}
+        onEdit={handleEdit}
+        onToggle={handleToggle}
+        onDelete={handleDelete}
+        filter={filter}
+      />
     </main>
   );
 }
