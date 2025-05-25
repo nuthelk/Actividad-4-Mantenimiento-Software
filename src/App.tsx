@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import TaskList from "./TaskList";
 import TaskForm from "./TaskForm";
+
 interface Task {
   id: string;
   text: string;
@@ -123,6 +124,7 @@ function App() {
           </button>
         </div>
         <button
+          onClick={handleClearCompleted}
           className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow font-semibold transition-colors duration-150 border-2 border-red-500 hover:border-red-600"
         >
           🧹 Limpiar Completadas
@@ -142,7 +144,8 @@ function App() {
               : undefined
           }
         />
-      ) : (<button
+      ) : (
+        <button
           onClick={() => {
             setEditingTask(null);
             setShowForm(true);
