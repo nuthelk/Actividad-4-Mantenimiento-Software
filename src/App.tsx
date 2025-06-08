@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import TaskList from "./TaskList";
 import TaskForm from "./TaskForm";
+// Importamos las funciones de nuestra nueva API
+import * as api from "./api";
 
 interface Task {
   id: string;
@@ -9,47 +11,69 @@ interface Task {
   priority: "Alta" | "Media" | "Baja";
 }
 
-const getInitialTasks = (): Task[] => {
-  const data = localStorage.getItem("tasks");
-  return data ? JSON.parse(data) : [];
-};
+// Eliminamos la función getInitialTasks() que usaba localStorage directamente
 
 function App() {
-  const [tasks, setTasks] = useState<Task[]>(getInitialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<string>("Todas");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
 
-  useEffect(() => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
-  }, [tasks]);
+  // NUEVOS ESTADOS para manejar carga y errores
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAddOrEditTask = (task: {
+  // NUEVO: Carga inicial de datos desde la API
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        setError(null);
+        setIsLoading(true);
+        const fetchedTasks = await api.getTasks();
+        setTasks(fetchedTasks);
+      } catch (err) {
+        setError("Error al cargar las tareas.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, []); // El array vacío asegura que se ejecute solo una vez al montar
+
+  // MODIFICADO: La función ahora es asíncrona y usa la API
+  const handleAddOrEditTask = async (task: {
     id?: string;
     text: string;
     priority: "Alta" | "Media" | "Baja";
   }) => {
-    if (task.id) {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id
-            ? { ...t, text: task.text, priority: task.priority }
-            : t
-        )
-      );
-    } else {
-      setTasks((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (task.id) {
+        // Editar
+        const updatedTask = await api.updateTask(task.id, {
           text: task.text,
-          completed: false,
           priority: task.priority,
-        },
-      ]);
+        });
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? updatedTask : t))
+        );
+      } else {
+        // Agregar
+        const newTask = await api.addTask({
+          text: task.text,
+          priority: task.priority,
+        });
+        setTasks((prev) => [...prev, newTask]);
+      }
+      setShowForm(false);
+      setEditingTask(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error.");
+    } finally {
+      setIsLoading(false);
     }
-    setEditingTask(null);
-    setShowForm(false);
   };
 
   const handleEdit = (id: string) => {
@@ -60,14 +84,39 @@ function App() {
     }
   };
 
-  const handleToggle = (id: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
+  // MODIFICADO: La función ahora es asíncrona
+  const handleToggle = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const updatedTask = await api.updateTask(id, {
+        completed: !task.completed,
+      });
+      setTasks((prev) => prev.map((t) => (t.id === id ? updatedTask : t)));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo actualizar el estado."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+  // MODIFICADO: La función ahora es asíncrona
+  const handleDelete = async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await api.deleteTask(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      setError("No se pudo eliminar la tarea.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -75,8 +124,22 @@ function App() {
     setShowForm(false);
   };
 
-  const handleClearCompleted = () => {
-    setTasks((prev) => prev.filter((t) => !t.completed));
+  // MODIFICADO: La función ahora es asíncrona
+  const handleClearCompleted = async () => {
+    const completedTasks = tasks.filter((t) => t.completed);
+    if (completedTasks.length === 0) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Borramos cada tarea completada en paralelo
+      await Promise.all(completedTasks.map((t) => api.deleteTask(t.id)));
+      setTasks((prev) => prev.filter((t) => !t.completed));
+    } catch (err) {
+      setError("No se pudieron limpiar las tareas completadas.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const pendingCount = tasks.filter((t) => !t.completed).length;
@@ -86,6 +149,18 @@ function App() {
       <h1 className="text-3xl font-extrabold mb-6 text-center text-blue-700 drop-shadow-lg">
         Lista de Tareas
       </h1>
+
+      {/* NUEVO: UI para mostrar errores */}
+      {error && (
+        <div
+          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4"
+          role="alert"
+        >
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
         <span className="text-base bg-blue-50 px-4 py-2 rounded-full shadow text-blue-700 font-semibold">
           Pendientes:{" "}
@@ -155,13 +230,18 @@ function App() {
           <span>➕</span> Agregar Tarea
         </button>
       )}
-      <TaskList
-        tasks={tasks}
-        onEdit={handleEdit}
-        onToggle={handleToggle}
-        onDelete={handleDelete}
-        filter={filter}
-      />
+      {/* NUEVO: UI para mostrar estado de carga */}
+      {isLoading ? (
+        <div className="text-center p-4 font-semibold">Cargando tareas...</div>
+      ) : (
+        <TaskList
+          tasks={tasks}
+          onEdit={handleEdit}
+          onToggle={handleToggle}
+          onDelete={handleDelete}
+          filter={filter}
+        />
+      )}
     </main>
   );
 }
